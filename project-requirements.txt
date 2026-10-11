@@ -1,0 +1,14 @@
+AI Data Risk Platform
+
+Project Requirements
+
+1. Upload CSV files.
+2. Clean and validate data.
+3. Analyze data using Python and Pandas.
+4. Display charts and statistics.
+5. Detect unusual data using Machine Learning.
+6. Generate risk reports.
+7. Store analysis results in a database.
+8. Test the application and handle errors.
+9. Deploy the application online.
+10. Document the project professionally.
