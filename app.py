@@ -12,6 +12,27 @@ st.set_page_config(
 
 DB_NAME = "risk_results.db"
 
+SAMPLE_DATA = {
+    "date": [
+        "2026-01-01", "2026-01-02", "2026-01-03",
+        "2026-01-04", "2026-01-05", "2026-01-06",
+        "2026-01-07", "2026-01-08", "2026-01-09",
+        "2026-01-10"
+    ],
+    "transaction_amount": [
+        150, 230, 180, 500, 120, 9500, 210, 8700, 160, 12000
+    ],
+    "transaction_type": [
+        "online", "online", "store", "online", "store",
+        "online", "store", "online", "store", "online"
+    ],
+    "location": [
+        "Riyadh", "Jeddah", "Tabuk", "Riyadh", "Medina",
+        "Unknown", "Tabuk", "Unknown", "Jeddah", "Unknown"
+    ],
+    "risk_score": [10, 15, 8, 25, 5, 98, 12, 95, 7, 99]
+}
+
 
 def init_database():
     with sqlite3.connect(DB_NAME) as conn:
@@ -53,164 +74,135 @@ init_database()
 
 st.title("AI Data Risk Platform")
 st.subheader("Intelligent Data Analysis and Risk Detection")
-st.write("Upload your data, analyze it, and discover unusual patterns.")
+st.write(
+    "Explore sample transaction data, analyze risks, "
+    "or upload your own CSV file."
+)
+st.info("Demo mode: the default data is fictional and provided for demonstration.")
 
 uploaded_file = st.file_uploader(
-    "Upload a CSV file",
+    "Upload your own CSV file (optional)",
     type=["csv"]
 )
 
-if uploaded_file is not None:
-    try:
-        if uploaded_file.size == 0:
-            st.error("The CSV file is empty. Please upload a file containing data.")
+try:
+    if uploaded_file is None:
+        df = pd.DataFrame(SAMPLE_DATA)
+        st.subheader("Sample Transaction Data")
+    elif uploaded_file.size == 0:
+        st.error("The CSV file is empty. Showing sample data instead.")
+        df = pd.DataFrame(SAMPLE_DATA)
+    else:
+        df = pd.read_csv(uploaded_file)
+        if df.empty or len(df.columns) == 0:
+            st.error("The CSV contains no data. Showing sample data instead.")
+            df = pd.DataFrame(SAMPLE_DATA)
         else:
-            df = pd.read_csv(uploaded_file)
+            st.subheader("Uploaded Data")
 
-            if df.empty or len(df.columns) == 0:
-                st.error("The CSV file contains no data. Please upload a valid file.")
-            else:
-                st.subheader("Original Data")
-                st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True)
 
-                original_rows = len(df)
-                df = df.drop_duplicates()
-                df = df.dropna(how="all").reset_index(drop=True)
+    original_rows = len(df)
+    df = df.drop_duplicates()
+    df = df.dropna(how="all").reset_index(drop=True)
 
-                st.subheader("Data Cleaning")
-                st.write(f"Rows before cleaning: {original_rows}")
-                st.write(f"Rows after cleaning: {len(df)}")
-                st.write(f"Duplicate rows removed: {original_rows - len(df)}")
-                st.dataframe(df, use_container_width=True)
+    st.subheader("Data Cleaning")
+    st.write(f"Rows before cleaning: {original_rows}")
+    st.write(f"Rows after cleaning: {len(df)}")
+    st.write(f"Duplicate rows removed: {original_rows - len(df)}")
+    st.dataframe(df, use_container_width=True)
 
-                st.subheader("Data Analysis")
+    amounts = pd.to_numeric(
+        df["transaction_amount"], errors="coerce"
+    ) if "transaction_amount" in df.columns else pd.Series(dtype=float)
 
-                if "transaction_amount" in df.columns:
-                    amounts = pd.to_numeric(
-                        df["transaction_amount"], errors="coerce"
-                    )
-                    total_amount = amounts.sum()
-                else:
-                    amounts = pd.Series(dtype=float)
-                    total_amount = 0
+    risks = pd.to_numeric(
+        df["risk_score"], errors="coerce"
+    ) if "risk_score" in df.columns else pd.Series(dtype=float)
 
-                if "risk_score" in df.columns:
-                    risks = pd.to_numeric(df["risk_score"], errors="coerce")
-                    average_risk = risks.mean()
-                else:
-                    risks = pd.Series(dtype=float)
-                    average_risk = float("nan")
+    total_amount = amounts.sum()
+    average_risk = risks.mean()
 
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Total Transactions", len(df))
-                c2.metric("Total Amount", f"{total_amount:,.0f}")
-                c3.metric(
-                    "Average Risk Score",
-                    f"{average_risk:.1f}"
-                    if pd.notna(average_risk) else "N/A"
-                )
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Transactions", len(df))
+    c2.metric("Total Amount", f"{total_amount:,.0f}")
+    c3.metric(
+        "Average Risk Score",
+        f"{average_risk:.1f}" if pd.notna(average_risk) else "N/A"
+    )
 
-                if "date" in df.columns and "transaction_amount" in df.columns:
-                    chart_df = df[["date", "transaction_amount"]].copy()
-                    chart_df["date"] = pd.to_datetime(
-                        chart_df["date"], errors="coerce"
-                    )
-                    chart_df["transaction_amount"] = pd.to_numeric(
-                        chart_df["transaction_amount"], errors="coerce"
-                    )
-                    chart_df = chart_df.dropna().sort_values("date")
-
-                    if not chart_df.empty:
-                        st.subheader("Transaction Amounts")
-                        st.bar_chart(
-                            chart_df.set_index("date")["transaction_amount"]
-                        )
-
-                if "date" in df.columns and "risk_score" in df.columns:
-                    risk_chart = df[["date", "risk_score"]].copy()
-                    risk_chart["date"] = pd.to_datetime(
-                        risk_chart["date"], errors="coerce"
-                    )
-                    risk_chart["risk_score"] = pd.to_numeric(
-                        risk_chart["risk_score"], errors="coerce"
-                    )
-                    risk_chart = risk_chart.dropna().sort_values("date")
-
-                    if not risk_chart.empty:
-                        st.subheader("Risk Scores")
-                        st.line_chart(
-                            risk_chart.set_index("date")["risk_score"]
-                        )
-
-                if "transaction_type" in df.columns:
-                    st.subheader("Transactions by Type")
-                    st.bar_chart(df["transaction_type"].value_counts())
-
-                st.subheader("AI Risk Detection")
-
-                required = ["transaction_amount", "risk_score"]
-
-                if all(column in df.columns for column in required):
-                    ai_data = df[required].copy()
-
-                    for column in required:
-                        ai_data[column] = pd.to_numeric(
-                            ai_data[column], errors="coerce"
-                        )
-
-                    valid = ai_data.dropna()
-
-                    if len(valid) >= 3:
-                        model = IsolationForest(
-                            contamination=0.2,
-                            random_state=42
-                        )
-                        predictions = model.fit_predict(valid)
-
-                        ai_results = df.loc[valid.index].copy()
-                        ai_results["AI Result"] = [
-                            "Unusual" if p == -1 else "Normal"
-                            for p in predictions
-                        ]
-
-                        unusual_count = int(
-                            (ai_results["AI Result"] == "Unusual").sum()
-                        )
-
-                        st.dataframe(ai_results, use_container_width=True)
-                        st.metric(
-                            "Unusual Transactions Detected", unusual_count
-                        )
-                        st.warning(
-                            "AI results are indicators for review, not proof of fraud."
-                        )
-
-                        if st.button("Save Analysis to Database"):
-                            save_result(
-                                len(df), unusual_count, average_risk
-                            )
-                            st.success("Analysis saved to the database!")
-                    else:
-                        st.warning(
-                            "At least 3 valid transactions are required for AI detection."
-                        )
-                else:
-                    st.warning(
-                        "The CSV must contain transaction_amount and risk_score."
-                    )
-
-    except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError):
-        st.error(
-            "Could not read this CSV file. Please upload a valid CSV containing data."
+    if "date" in df.columns and "transaction_amount" in df.columns:
+        chart_df = df[["date", "transaction_amount"]].copy()
+        chart_df["date"] = pd.to_datetime(chart_df["date"], errors="coerce")
+        chart_df["transaction_amount"] = pd.to_numeric(
+            chart_df["transaction_amount"], errors="coerce"
         )
-    except Exception as e:
-        st.error(f"Something went wrong: {e}")
+        chart_df = chart_df.dropna().sort_values("date")
+        if not chart_df.empty:
+            st.subheader("Transaction Amounts")
+            st.bar_chart(chart_df.set_index("date")["transaction_amount"])
+
+    if "date" in df.columns and "risk_score" in df.columns:
+        risk_chart = df[["date", "risk_score"]].copy()
+        risk_chart["date"] = pd.to_datetime(risk_chart["date"], errors="coerce")
+        risk_chart["risk_score"] = pd.to_numeric(
+            risk_chart["risk_score"], errors="coerce"
+        )
+        risk_chart = risk_chart.dropna().sort_values("date")
+        if not risk_chart.empty:
+            st.subheader("Risk Scores")
+            st.line_chart(risk_chart.set_index("date")["risk_score"])
+
+    if "transaction_type" in df.columns:
+        st.subheader("Transactions by Type")
+        st.bar_chart(df["transaction_type"].value_counts())
+
+    st.subheader("AI Risk Detection")
+    required = ["transaction_amount", "risk_score"]
+
+    if all(column in df.columns for column in required):
+        ai_data = df[required].copy()
+        for column in required:
+            ai_data[column] = pd.to_numeric(ai_data[column], errors="coerce")
+
+        valid = ai_data.dropna()
+
+        if len(valid) >= 3:
+            model = IsolationForest(contamination=0.2, random_state=42)
+            predictions = model.fit_predict(valid)
+
+            ai_results = df.loc[valid.index].copy()
+            ai_results["AI Result"] = [
+                "Unusual" if p == -1 else "Normal"
+                for p in predictions
+            ]
+
+            unusual_count = int(
+                (ai_results["AI Result"] == "Unusual").sum()
+            )
+            st.dataframe(ai_results, use_container_width=True)
+            st.metric("Unusual Transactions Detected", unusual_count)
+            st.warning(
+                "AI results are indicators for review, not proof of fraud."
+            )
+
+            if st.button("Save Analysis to Database"):
+                save_result(len(df), unusual_count, average_risk)
+                st.success("Analysis saved to the database!")
+        else:
+            st.warning("At least 3 valid transactions are required for AI detection.")
+    else:
+        st.warning("The CSV must contain transaction_amount and risk_score.")
+
+except (pd.errors.EmptyDataError, pd.errors.ParserError, UnicodeDecodeError):
+    st.error("Could not read the CSV. Please upload a valid CSV file.")
+except Exception as e:
+    st.error(f"Something went wrong: {e}")
 
 st.divider()
 st.subheader("Saved Analysis History")
 
 history = load_results()
-
 if history.empty:
     st.info("No saved analysis results yet.")
 else:
